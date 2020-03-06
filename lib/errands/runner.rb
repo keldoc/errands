@@ -197,6 +197,8 @@ module Errands
         self.class.started_workers *_
       elsif !our[:noop_run]
         starting self.class.started_workers
+
+        on_workers_started if respond_to? :on_workers_started, true
       end
     end
 
