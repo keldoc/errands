@@ -1,55 +1,44 @@
+# frozen_string_literal: true
+
 require 'errands/alternate_private_access'
 
 module Errands
-
   module TestHelpers
-
     module OurStore
-
-      def initialize(*_)
-        s = if _.size == 1 && _.first.is_a?(Hash)
-          _.first.delete(:startup).tap { _.pop if _.first.empty? }
-        elsif _.last.is_a?(Hash)
-          _.pop[:startup]
-        end
+      def initialize(*args)
+        s = if args.size == 1 && args.first.is_a?(Hash)
+              args.first.delete(:startup).tap { args.pop if args.first.empty? }
+            elsif args.last.is_a?(Hash)
+              args.pop[:startup]
+            end
 
         our_store! (s.is_a?(Hash) ? s : send(s)) || {}
 
         super
       end
-
     end
 
     module ResetStartedWorkers
-
       def reset_started_workers
         @started_workers = nil
       end
-
     end
 
     module StopAll
-
       def stopped_threads
-        threads.keys.reject { |k| k.to_s =~ /^errands_.+_stop$/}
+        threads.keys.reject { |k| k.to_s =~ /^errands_.+_stop$/ }
       end
-
     end
 
     class Wrapper
-
       class Vanilla
-
         extend ThreadAccessor::PrivateAccess
 
         class << self
-
           def theirs
             our
           end
-
         end
-
       end
 
       include Errands::AlternatePrivateAccess
@@ -58,14 +47,14 @@ module Errands
         @instance = new
       end
 
-      def self.help(helped, options = {}, &block)
+      def self.help(helped, _options = {}, &block)
         helper
-        #~ @instance.theirs_reset! unless options[:reset] == false
+        # ~ @instance.theirs_reset! unless options[:reset] == false
         @instance.help helped, &block
       end
 
       def initialize
-        set_store :errands_test
+        load_store :errands_test
         our_store!
       end
 
@@ -81,16 +70,16 @@ module Errands
         end
       end
 
-      def helped(i = nil)
-        i ? our[:helped] = i : our[:helped]
+      def helped(inf = nil)
+        inf ? our[:helped] = inf : our[:helped]
       end
 
-      def push_event(e)
-        theirs && theirs[:events] && theirs[:events] << e
+      def push_event(err)
+        theirs && theirs[:events] && theirs[:events] << err
       end
 
       def theirs_reset!
-        theirs && theirs.clear
+        theirs&.clear
       end
 
       def self.after
@@ -114,9 +103,6 @@ module Errands
         helped.stop
         helped.wait_for :stopped
       end
-
     end
-
   end
-
 end
