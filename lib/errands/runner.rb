@@ -396,7 +396,7 @@ module Errands
       log_activity ["Data : #{data}", "Error : #{err}, #{err.message}\n#{err.backtrace}",
                     "Context : #{args}"].join("\n")
     rescue StandardError => e
-      puts "Got #{e} in the process of logging error #{err}"
+      puts "Got #{e} in the process of logging error #{err} "
     end
 
     def log_activity(*args)
