@@ -14,7 +14,7 @@ module Errands
       end
     end
 
-    def load_store(store)
+    def set_store(store) # rubocop:disable Naming/AccessorMethodName
       singleton_class.errands_store = store
     end
 

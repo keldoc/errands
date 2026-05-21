@@ -95,9 +95,9 @@ module Errands
         @name = name
       end
 
-       def shift(*args)
-         my[:data] = super.tap { |value| my.merge! receptor_track: track(value), latency: empty? }
-       end
+      def shift(*args)
+        my[:data] = super.tap { |value| my.merge! receptor_track: track(value), latency: empty? }
+      end
 
       def <<(value)
         return if value.nil?
@@ -234,101 +234,103 @@ module Errands
       time = Time.now.to_f
       loop do
         break if @errands_wait_timeout && Time.now.to_f - time > @errands_wait_timeout
-        break if if meth && our[key].respond_to?(meth, true)
-                   begin
-                     (our[key].send(meth) == result)
-                   rescue StandardError
-                     nil
-                   end
-                 else
-                   !our[key].nil? == result
+
+        done = if meth && our[key].respond_to?(meth, true)
+                 begin
+                   (our[key].send(meth) == result)
+                 rescue StandardError
+                   nil
                  end
+               else
+                 (!!our[key] == result) # rubocop:disable Style/DoubleNegation
+               end
+        break if done
+
+        Thread.pass
       end
     end
 
-     def stopped?
-       our[:stopped] = threads.key_sliced(stopped_threads).alive.empty?.tap do |bool|
-         if bool
-           log_activity Time.now, "#{self.class} #{begin
-             name
-           rescue StandardError
-             nil
-           end} : All activities stopped"
-         end
-       end
-     end
+    def stopped?
+      our[:stopped] = threads.key_sliced(stopped_threads).alive.empty?.tap do |bool|
+        if bool
+          log_activity Time.now, "#{self.class} #{begin
+            name
+          rescue StandardError
+            nil
+          end} : All activities stopped"
+        end
+      end
+    end
 
-     def started?
-       !!our && !!threads && our[:started] = !stopped?
-     end
+    def started?
+      !!our && !!threads && our[:started] = !stopped?
+    end
 
-     def stopped_threads
-       our[:stopped_threads] || threads.keys.reject { |k| k.to_s =~ /^errands_.+_stop$/ }
-     end
+    private
 
-     private
-
-     def minimal_startup
-       { threads: Runners.new, receptors: Receptors.new }
-     end
+    def minimal_startup
+      { threads: Runners.new, receptors: Receptors.new }
+    end
 
     def frequency(name = nil)
       our[:config] && our[:config][:frequencies] && our[:config][:frequencies][name || my[:name]]
     end
 
-     def main_loop
-       rescued_loop do
-         (e = events.shift) ? errands(*e) : sleep(frequency(:main_loop) || 1)
-       end
+    def main_loop
+      rescued_loop do
+        break if stopped?
 
-       log_activity Time.now, "#{self.class} #{begin
-         name
-       rescue StandardError
-         nil
-       end} : Exiting main loop"
-     end
+        (e = events.shift) ? errands(*e) : sleep(frequency(:main_loop) || 1)
+      end
+
+      log_activity Time.now, "#{self.class} #{begin
+        name
+      rescue StandardError
+        nil
+      end} : Exiting main loop"
+    end
 
     def ready_receptor!(processing)
       receptors[processing].tap { threads[processing] ||= spring processing }
     end
 
-     def spring(processing)
-       running processing, loop: true, deletable: true do
-         data = receptors[my[:name]].shift || Thread.stop || receptors[my[:name]].shift
-         data && send(processing, data).tap do |r|
-           if my[:receptor_track] && my[:receptor_track][:receptor].name != my[:name]
-             my[:receptor_track][:receptor] << my[:receptor_track].merge(result: r).reject { |k, _v| k == :receptor }
-           end
-         end
-       end
-     end
+    def spring(processing)
+      running processing, loop: true, deletable: true do
+        data = receptors[my[:name]].shift || Thread.stop || receptors[my[:name]].shift
+        data && send(processing, data).tap do |r|
+          if my[:receptor_track] && my[:receptor_track][:receptor].name != my[:name]
+            my[:receptor_track][:receptor] << my[:receptor_track].merge(result: r).reject { |k, _v| k == :receptor }
+          end
+        end
+      end
+    end
 
     def errands(errand, *args)
       running("#{thread_name(1)}_#{errand}".to_sym, deletable: true) { send errand, *args }
     end
 
-     def running(name = thread_name, options = {}, &block)
-       if @running_mode
-         send @running_mode, &block
-       else
-         thread = Thread.new do
-           (my && my[:name] && (my[:named] = true)) || Thread.stop || (my[:named] = true)
-           r = my[:result] = rescued_execution(&block)
-           ["stop_#{name}", our[name] && "stop_#{his(our[name])[:type]}"].compact.each { |s| checked_send s }
-           my[:deletable] && threads.delete(name)
-           r
-         end
-         his_store! thread, {
-           name: name,
-           time: Time.now.to_f,
-           stop: false,
-           type: :any,
-           receptor_track: my && my.delete(:receptor_track)
-         }.merge(options)
-         thread.run unless his(thread)[:named]
-         threads[name] = thread
-       end
-     end
+    def running(name = thread_name, options = {}, &block)
+      if @running_mode
+        send @running_mode, &block
+      else
+        thread = Thread.new do
+          (my && my[:name] && (my[:named] = true)) || Thread.stop || (my[:named] = true)
+          r = my[:result] = rescued_execution(&block)
+          ["stop_#{name}", our[name] && "stop_#{his(our[name])[:type]}"].compact.each { |s| checked_send s }
+          my[:deletable] && threads.delete(name)
+          r
+        end
+        his_store! thread, {
+          name: name,
+          time: Time.now.to_f,
+          stop: false,
+          type: :any,
+          receptor_track: my && my.delete(:receptor_track)
+        }.merge(options)
+        thread.run unless his(thread)[:named]
+        threads[name] = thread
+      end
+    end
 
     def exiting(name, force = true)
       if force && Thread.current == our[name]
@@ -339,7 +341,15 @@ module Errands
       wait_for name, :alive?, false
     end
 
-     def thread_name(caller_depth = 2)
+    public
+
+    def stopped_threads
+      our[:stopped_threads] || threads.keys.reject { |k| k.to_s =~ /^errands_.+_stop$/ }
+    end
+
+    private
+
+    def thread_name(caller_depth = 2)
       caller_locations(caller_depth, 1).first.base_label.dup.tap do |n|
         n << '_' << Time.now.to_f.to_s.sub('.', '_') if n.end_with? 's'
       end.to_sym
@@ -351,7 +361,7 @@ module Errands
           my[:stop] ? break : yield
 
           Time.now
-        rescue StandardError => e
+        rescue StandardError, LoadError => e
           log_error e, my[:data], my
         rescue Exception => e # rubocop:disable Lint/RescueException
           log_error e, my[:data], my

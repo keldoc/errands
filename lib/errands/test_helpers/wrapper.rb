@@ -54,7 +54,7 @@ module Errands
       end
 
       def initialize
-        load_store :errands_test
+        set_store :errands_test
         our_store!
       end
 

@@ -43,19 +43,19 @@ class NeedRunner
     job
   end
 
-   def other_job
-     running do
-       i = 0
-       rescued_loop do
-         i += 1
+  def other_job
+    running do
+      i = 0
+      rescued_loop do
+        i += 1
 
-         s = our[:faulty_other_job] && i == 2 ? i : i.to_s
-         my[:receptor_track] = { receptor: our[:other_job_pile] }
-         our[:dir] << s
-         sleep 0.3
-       end
-     end
-   end
+        s = our[:faulty_other_job] && i == 2 ? i : i.to_s
+        my[:receptor_track] = { receptor: our[:other_job_pile] }
+        our[:dir] << s
+        sleep 0.3
+      end
+    end
+  end
 
   def other_dumb_job(err = :dumb)
     errands err
@@ -253,8 +253,9 @@ describe NeedRunner do # rubocop:disable Metrics/BlockLength
       end
 
       it 'should have stopped after reaching the limit' do
-        expect(needy.status.values.uniq - ['run']).to eq ['sleep']
-        expect([nil, [[:stop]]]).to include(needy.events)
+        expect(needy.status.values.uniq).to eq ['sleep']
+        expect(needy.pile.size).to be >= limit
+        expect(needy.events).to eq [[:stop]]
         expect(needy.threads[:worker].status).to eq 'sleep'
       end
     end
@@ -267,8 +268,7 @@ describe NeedRunner do # rubocop:disable Metrics/BlockLength
       end
 
       it 'should have stopped after reaching the limit' do
-        expect(needy.threads[:worker]).to be_truthy
-        expect(needy.threads[:worker].alive?).to be_truthy
+        expect(needy.threads[:worker]).not_to eq needy.previous_worker
         expect(needy.worker_done_marker).to be_falsy
       end
     end
@@ -459,8 +459,6 @@ describe NeedRunner do # rubocop:disable Metrics/BlockLength
         end
 
         it 'should have received stop signal' do
-          needy.wait_for :stopped
-          needy.stop unless needy.stopped?
           expect(needy.stopped?).to be_truthy
         end
       end
