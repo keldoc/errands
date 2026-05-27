@@ -1,7 +1,7 @@
+# frozen_string_literal: true
+
 module Errands
-
   module AlternatePrivateAccess
-
     def self.included(singleton)
       class << singleton
         attr_accessor :errands_store
@@ -14,20 +14,20 @@ module Errands
       end
     end
 
-    def set_store(store)
+    def set_store(store) # rubocop:disable Naming/AccessorMethodName
       singleton_class.errands_store = store
     end
 
     private
 
-    def our_store!(h = nil)
-      (Thread.main[singleton_class.errands_store] = h || {}).tap do |store|
-        if t = store[:threads]
+    def our_store!(hash = nil)
+      (Thread.main[singleton_class.errands_store] = hash || {}).tap do |store|
+        if (t = store[:threads])
           t.singleton_class.include AlternatePrivateAccess
           t.singleton_class.errands_store = singleton_class.errands_store
         end
 
-        if r = Thread.main[singleton_class.errands_store][:receptors]
+        if (r = Thread.main[singleton_class.errands_store][:receptors])
           r.singleton_class.include AlternatePrivateAccess
           r.singleton_class.errands_store = singleton_class.errands_store
 
@@ -38,14 +38,11 @@ module Errands
             end
           end
         end
-
       end
     end
 
     def our
       singleton_class.errands_store && Thread.main[singleton_class.errands_store]
     end
-
   end
-
 end
