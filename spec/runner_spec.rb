@@ -48,7 +48,7 @@ class NeedRunner
       i = 0
       rescued_loop do
         i += 1
-
+        1 / (i - 1)
         s = our[:faulty_other_job] && i == 2 ? i : i.to_s
         my[:receptor_track] = { receptor: our[:other_job_pile] }
         our[:dir] << s
@@ -297,7 +297,7 @@ describe NeedRunner do # rubocop:disable Metrics/BlockLength
           end
 
           it 'should log an error on tracking' do
-            expect(needy.receptors[:errors]).to include("can't modify frozen Integer")
+            expect(needy.receptors[:errors]).to eq ['divided by 0', "can't modify frozen Integer"]
           end
         end
 
